@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/StaticData/StaticData.iml" filepath="$PROJECT_DIR$/StaticData/StaticData.iml" />
       <module fileurl="file://$PROJECT_DIR$/auction.iml" filepath="$PROJECT_DIR$/auction.iml" />
     </modules>
   </component>

@@ -1,12 +1,9 @@
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.sql.ResultSet;
-import java.sql.DriverManager;
+import java.sql.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.text. *;
 import java.util. *;
+import StaticData. *;
+import java.security.MessageDigest;
 
 public class Auction {
 	private static Scanner scanner = new Scanner(System.in);
@@ -30,7 +27,6 @@ public class Auction {
 
 	private static boolean LoginMenu() {
 		String userpass, isAdmin;
-
 		System.out.print("----< User Login >\n" +
 				" ** To go back, enter 'back' in user ID.\n" +
 				"     user ID: ");
@@ -50,17 +46,27 @@ public class Auction {
 			username = null;
 			return false;
 		}
-
-		/* Your code should come here to check ID and password */ 
-
-		if (false) {  
-			/* If Login Fails */
-			System.out.println("Error: Incorrect user name or password");
-			return false; 
+		try (PreparedStatement pstmt = conn.prepareStatement(Query.QUERY_LOGIN)) {
+			pstmt.setString(1, username);
+			pstmt.setString(2, userpass);
+			ResultSet rs = pstmt.executeQuery();
+			rs.next();
+			int rowCnt = rs.getInt(1);
+			if (rowCnt == 1) { // Only a single row must be shown.
+				System.out.println("You are successfully logged in.\n");
+				return true;
+			} else {
+				/* If Login Fails */
+				System.out.println("Error: Incorrect user name or password");
+				System.out.println(rowCnt);
+				return false;
+			}
+		} catch (Exception e) {
+				System.out.println("Failed to login due to some error. Sorry.");
+				e.printStackTrace();
+				username = null;
+				return false;
 		}
-
-		System.out.println("You are successfully logged in.\n");
-		return true;
 	}
 
 	private static boolean SellMenu() {
@@ -194,6 +200,7 @@ public class Auction {
 	}
 
 	private static boolean SignupMenu() {
+
 		/* 2. Sign Up */
 		String new_username, userpass, isAdmin;
 		System.out.print("----< Sign Up >\n" + 
@@ -206,20 +213,38 @@ public class Auction {
 				return false;
 			}
 			System.out.print("---- password: ");
-			userpass = scanner.next();
+			userpass = scanner.next(); // TODO: Maybe Hashing this thing?
 			scanner.nextLine();
 			System.out.print("---- In this user an administrator? (Y/N): ");
 			isAdmin = scanner.next();
+			if (!Objects.equals(isAdmin, "Y") &&  !Objects.equals(isAdmin, "N")) {
+				System.out.println("Error: Invalid administrator value input is entered. Try again.");
+				return false;
+			}
 			scanner.nextLine();
+			try (PreparedStatement pstmt = conn.prepareStatement(Query.QUERY_REGISTER)) {
+				pstmt.setString(1, username);
+				pstmt.setString(2, userpass);
+				pstmt.setString(3, Objects.equals(isAdmin, "Y") ? "true" : "false");
+
+				if (pstmt.executeUpdate() == 1) { // Only a single row must be updated.
+					System.out.println("Your account has been successfully created.\n");
+					return true;
+				} else {
+					/* If Registering Fails */
+					System.out.println("Error: Failed to register. Sorry.");
+					return false;
+				}
+			} catch (Exception e) {
+				System.out.println("Failed to login due to some error. Sorry.");
+				e.printStackTrace();
+				username = null;
+				return false;
+			}
 		} catch (java.util.InputMismatchException e) {
 			System.out.println("Error: Invalid input is entered. Please select again.");
 			return false;
 		}
-
-		/* TODO: Your code should come here to create a user account in your database */
-
-		System.out.println("Your account has been successfully created.\n");
-		return true;
 	}
 
 	private static boolean AdminMenu() {
@@ -239,16 +264,26 @@ public class Auction {
 			}
 			System.out.print("---- password: ");
 			adminpass = scanner.nextLine();
-			// TODO: check the admin's account and password.
+
+			try (PreparedStatement pstmt = conn.prepareStatement(Query.QUERY_ADMIN_LOGIN)) {
+				pstmt.setString(1, adminname);
+				pstmt.setString(2, adminpass);
+				ResultSet rs = pstmt.executeQuery();
+				rs.next();
+				int rowCnt = rs.getInt(1);
+				if (rowCnt != 1) {
+					/* If Login Fails */
+					System.out.println("Error: Incorrect user name or password");
+					System.out.println(rowCnt);
+					return false;
+				}
+			} catch (Exception e) {
+				System.out.println("Failed to login due to some error. Sorry.");
+				e.printStackTrace();
+				return false;
+			}
 		} catch (java.util.InputMismatchException e) {
 			System.out.println("Error: Invalid input is entered. Try again.");
-			return false;
-		}
-
-		boolean login_success = true;
-
-		if(!login_success){
-			// login failed. go back to the previous menu.
 			return false;
 		}
 
@@ -529,24 +564,27 @@ public class Auction {
 		 */
 	}
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws SQLException {
 		char choice;
 		boolean ret;
 
-		if(args.length<2){
-			System.out.println("Usage: java Auction postgres_id password");
-			System.exit(1);
-		}
+//		if(args.length<2){
+//			System.out.println("Usage: java Auction postgres_id password");
+//			System.exit(1);
+//		}
 
 
 		try{
             //    	conn = DriverManager.getConnection("jdbc:postgresql://localhost/"+args[0], args[0], args[1]); 
-            Connection conn = DriverManager.getConnection("jdbc:postgresql://localhost/bnam", "bnam", "changethis"); 
+            conn = DriverManager.getConnection(Define.jdbcUrl, Define.jdbcUsername, Define.jdbcPassword);
 		}
 		catch(SQLException e){
 			System.out.println("SQLException : " + e);	
 			System.exit(1);
+		} catch(Exception e){
+			e.printStackTrace();
 		}
+
 
 		do {
 			username = null;
@@ -584,7 +622,7 @@ public class Auction {
 						System.out.println("Good Bye");
 						/* TODO: close the connection and clean up everything here */
 						conn.close();
-						System.exit(1);
+						System.exit(0);
 					default:
 						System.out.println("Error: Invalid input is entered. Try again.");
 				}
@@ -637,7 +675,7 @@ public class Auction {
 						System.out.println("Good Bye");
 						/* TODO: close the connection and clean up everything here */
 						conn.close();
-						System.exit(1);
+						System.exit(0);
 				}
 			} catch (SQLException e) {
 				System.out.println("SQLException : " + e);	
