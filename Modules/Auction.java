@@ -1,10 +1,8 @@
+package Modules;
+
 import java.sql.*;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util. *;
 import StaticData. *;
-import java.security.MessageDigest;
-import Modules. *;
 
 public class Auction {
 	public static Scanner scanner = new Scanner(System.in);
@@ -16,7 +14,7 @@ public class Auction {
 		boolean ret;
 
 //		if(args.length<2){
-//			System.out.println("Usage: java Auction postgres_id password");
+//			System.out.println("Usage: java Modules.Auction postgres_id password");
 //			System.exit(1);
 //		}
 
@@ -31,7 +29,7 @@ public class Auction {
 		} catch(Exception e){
 			e.printStackTrace();
 		}
-
+		System.out.println(conn);
 
 		do {
 			username = null;

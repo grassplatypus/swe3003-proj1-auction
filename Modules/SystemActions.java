@@ -4,9 +4,10 @@ import StaticData.Query;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util. *;
 
 public class SystemActions {
-    private static boolean AdminMenu() {
+    public static boolean AdminMenu() {
         /* 3. Login as Administrator */
         char choice;
         String adminname, adminpass;
@@ -16,15 +17,15 @@ public class SystemActions {
                 "---- admin ID: ");
 
         try {
-            adminname = scanner.next();
-            scanner.nextLine();
+            adminname = Auction.scanner.next();
+            Auction.scanner.nextLine();
             if(adminname.equalsIgnoreCase("back")){
                 return false;
             }
             System.out.print("---- password: ");
-            adminpass = scanner.nextLine();
+            adminpass = Auction.scanner.nextLine();
 
-            try (PreparedStatement pstmt = conn.prepareStatement(Query.QUERY_ADMIN_LOGIN)) {
+            try (PreparedStatement pstmt = Auction.conn.prepareStatement(Query.QUERY_ADMIN_LOGIN)) {
                 pstmt.setString(1, adminname);
                 pstmt.setString(2, adminpass);
                 ResultSet rs = pstmt.executeQuery();
@@ -57,8 +58,8 @@ public class SystemActions {
             );
 
             try {
-                choice = scanner.next().charAt(0);;
-                scanner.nextLine();
+                choice = Auction.scanner.next().charAt(0);;
+                Auction.scanner.nextLine();
             } catch (java.util.InputMismatchException e) {
                 System.out.println("Error: Invalid input is entered. Try again.");
                 continue;
@@ -66,8 +67,8 @@ public class SystemActions {
 
             if (choice == '1') {
                 System.out.println("----Enter Category to search : ");
-                keyword = scanner.next();
-                scanner.nextLine();
+                keyword = Auction.scanner.next();
+                Auction.scanner.nextLine();
                 /*TODO: Print Sold Items per Category */
                 System.out.println("sold item       | sold date       | seller ID   | buyer ID   | price | commissions");
                 System.out.println("----------------------------------------------------------------------------------");
@@ -79,8 +80,8 @@ public class SystemActions {
             } else if (choice == '2') {
                 /*TODO: Print Account Balance for Seller */
                 System.out.println("---- Enter Seller ID to search : ");
-                seller = scanner.next();
-                scanner.nextLine();
+                seller = Auction.scanner.next();
+                Auction.scanner.nextLine();
                 System.out.println("sold item       | sold date       | buyer ID   | price | commissions");
                 System.out.println("--------------------------------------------------------------------");
 				/*
@@ -113,5 +114,99 @@ public class SystemActions {
                 continue;
             }
         } while(true);
+    }
+
+
+    public static boolean LoginMenu() {
+        String userpass, isAdmin;
+        System.out.print("----< User Login >\n" +
+                " ** To go back, enter 'back' in user ID.\n" +
+                "     user ID: ");
+        try{
+            Auction.username = Auction.scanner.next();
+            Auction.scanner.nextLine();
+
+            if(Auction.username.equalsIgnoreCase("back")){
+                return false;
+            }
+
+            System.out.print("     password: ");
+            userpass = Auction.scanner.next();
+            Auction.scanner.nextLine();
+        }catch (java.util.InputMismatchException e) {
+            System.out.println("Error: Invalid input is entered. Try again.");
+            Auction.username = null;
+            return false;
+        }
+        try (PreparedStatement pstmt = Auction.conn.prepareStatement(Query.QUERY_LOGIN)) {
+            pstmt.setString(1, Auction.username);
+            pstmt.setString(2, userpass);
+            ResultSet rs = pstmt.executeQuery();
+            rs.next();
+            int rowCnt = rs.getInt(1);
+            if (rowCnt == 1) { // Only a single row must be shown.
+                System.out.println("You are successfully logged in.\n");
+                return true;
+            } else {
+                /* If Login Fails */
+                System.out.println("Error: Incorrect user name or password");
+                System.out.println(rowCnt);
+                return false;
+            }
+        } catch (Exception e) {
+            System.out.println("Failed to login due to some error. Sorry.");
+            e.printStackTrace();
+            Auction.username = null;
+            return false;
+        }
+    }
+
+
+    public static boolean SignupMenu() {
+
+        /* 2. Sign Up */
+        String new_username, userpass, isAdmin;
+        System.out.print("----< Sign Up >\n" +
+                " ** To go back, enter 'back' in user ID.\n" +
+                "---- user name: ");
+        try {
+            new_username = Auction.scanner.next();
+            Auction.scanner.nextLine();
+            if(new_username.equalsIgnoreCase("back")){
+                return false;
+            }
+            System.out.print("---- password: ");
+            userpass = Auction.scanner.next(); // TODO: Maybe Hashing this thing?
+            Auction.scanner.nextLine();
+            System.out.print("---- In this user an administrator? (Y/N): ");
+            isAdmin = Auction.scanner.next();
+            if (!Objects.equals(isAdmin, "Y") &&  !Objects.equals(isAdmin, "N")) {
+                System.out.println("Error: Invalid administrator value input is entered. Try again.");
+                return false;
+            }
+            Auction.scanner.nextLine();
+            try (PreparedStatement pstmt = Auction.conn.prepareStatement(Query.QUERY_REGISTER)) {
+                pstmt.setString(1, Auction.username);
+                pstmt.setString(2, userpass);
+                pstmt.setString(3, Objects.equals(isAdmin, "Y") ? "true" : "false");
+
+                if (pstmt.executeUpdate() == 1) { // Only a single row must be updated.
+                    System.out.println("Your account has been successfully created.\n");
+                    return true;
+                } else {
+                    /* If Registering Fails */
+                    System.out.println("Error: Failed to register. Sorry.");
+                    return false;
+                }
+            } catch (Exception e) {
+                System.out.println("Failed to login due to some error. Sorry.");
+                e.printStackTrace();
+                Auction.username = null;
+                return false;
+            }
+        } catch (java.util.InputMismatchException e) {
+            System.out.println("Error: Invalid input is entered. Please select again.");
+            return false;
+        }
     }
 }
