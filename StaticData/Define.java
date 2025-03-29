@@ -7,13 +7,15 @@ public class Define {
         HOME,
         CLOTHING,
         SPORTINGGOODS,
-        OTHERS
+        OTHERS,
+        ANY
     }
     public enum Condition {
         NEW,
         LIKE_NEW,
         GOOD,
-        ACCEPTABLE
+        ACCEPTABLE,
+        ANY
     }
 
     public static String jdbcUrl = "jdbc:postgresql://localhost:5432/s21312673";

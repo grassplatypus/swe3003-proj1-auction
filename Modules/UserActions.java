@@ -4,7 +4,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.InputMismatchException;
+import java.util.List;
+import java.util.Objects;
 
 import Modules.*;
 import StaticData.*;
@@ -181,21 +184,32 @@ public class UserActions {
     public static void CheckSellStatus(){
         /* TODO: Check the status of the item the current user is selling */
 
-        System.out.println("item listed in Modules.Auction | bidder (buyer ID) | bidding price | bidding date/time \n");
+        System.out.println("item listed in Auction | latest bidder (buyer ID) | latest bidding price | latest bidding date/time \n");
         System.out.println("-------------------------------------------------------------------------------\n");
-		/*
-		   while(rset.next(){
-		   System.out.println();
-		   }
-		 */
-    }
+        try (PreparedStatement pstmt = Auction.conn.prepareStatement(Query.QUERY_USER_CHECK_SELLS)) {
+            pstmt.setString(1, Auction.username);
+            ResultSet rs = pstmt.executeQuery();
 
+            while(rs.next()) {
+                System.out.println(rs.getString(1) + "\t"   // item (desc?)
+                        + rs.getString(2) + "\t"         // bidder id
+                        + rs.getBigDecimal(3) + "\t"            // bid price
+                        + rs.getTimestamp(5) + "\t");     // bid time
+            }
+
+        } catch (Exception e) {
+            System.out.println("Failed to check seller balance due to some error. Sorry.");
+            e.printStackTrace();
+        }
+    }
+    /// 아이템 구매
+    /// 아이템을 조건별 검색 이후 구매까지 구현해야함.
     public static boolean BuyItem(){
-        Define.Category category = null;
-        Define.Condition condition = null;
+        Define.Category category = Define.Category.ANY;
+        Define.Condition condition = Define.Condition.ANY;
         char choice;
-        int price;
-        String keyword, seller, datePosted;
+        int price = 0;
+        String keyword = "", seller = "", datePosted = "";
         boolean flag_catg = true, flag_cond = true;
 
         do {
@@ -259,7 +273,7 @@ public class UserActions {
                             "   1. New\n" +
                             "   2. Like-new\n" +
                             "   3. Used (Good)\n" +
-                            "   4. Used (Acceptable)\n" +
+                            "   4. Used (Acceptable)\n" + // TODO: ANY 추가
                             "   P. Go Back to Previous Menu"
             );
             try {
@@ -291,7 +305,6 @@ public class UserActions {
                 default:
                     System.out.println("Error: Invalid input is entered. Try again.");
                     flag_cond = false;
-                    continue;
             }
         } while(!flag_cond);
 
@@ -306,48 +319,99 @@ public class UserActions {
             Auction.scanner.nextLine();
 
             System.out.println("---- Enter date posted (YYYY-MM-DD): ");
-            System.out.println(" ** This will search items that have been posted after the designated date.");
+            System.out.println(" ** This will search items that have been posted after the designated date." +
+                    "\n**Enter 'any' if you want to see items from any seller. ");
             datePosted = Auction.scanner.next();
             Auction.scanner.nextLine();
         } catch (InputMismatchException e) {
             System.out.println("Error: Invalid input is entered. Try again.");
             return false;
         }
-        // 검색, 
-        try (PreparedStatement stmtAddItem = Auction.conn.prepareStatement(Query.QUERY_USER_SELL_ITEM_REGISTER,
-                PreparedStatement.RETURN_GENERATED_KEYS)) {
-            stmtAddItem.setString(1, keyword); // item_desc
-            stmtAddItem.setString(2, seller); // seller_id
-            stmtAddItem.setString(3, category.name());
-            stmtAddItem.setString(4, condition.name());
 
-            if (stmtAddItem.executeUpdate() != 1) {
-                /* If Fails */
-                System.out.println("Error: Failed to add item.");
+        // 가지고 있는 변수들:
+        // category, condition, keyword, seller, datePosted가 있음
+        boolean hasCondition = false;
+        List<String> searchConditions = new ArrayList<>();
+        StringBuilder sql = new StringBuilder(
+                "select " +
+                "item_id, item_desc, item_condition, seller_id, buy_it_now_price, bidder_id, bid_end_time - now(), bid_end_time" +
+                "from items join auctions " +
+                "using (auction_id) left join " + // 입찰자 정보 없어도 상품은 표시
+                "(select auction_id, bidder_id, max(bid_price) from bids group by auction_id, bidder_id) " +
+                "using (auction_id) " +
+                "order by bid_end_time");
+        if (category != Define.Category.ANY) {
+            sql.append(hasCondition ? " and " : " where");
+            sql.append(" item_category = ?");
+            searchConditions.add(category.name());
+            hasCondition = true;
+        }
+        if (condition != Define.Condition.ANY) {
+            sql.append(hasCondition ? " and " : " where");
+            sql.append(" item_condition = ?");
+            searchConditions.add(condition.name());
+            hasCondition = true;
+        }
+        if (!Objects.equals(keyword, "")) {
+            sql.append(hasCondition ? " and " : " where");
+            sql.append(" item_desc like ?");
+            searchConditions.add("%" + keyword + "%");
+            hasCondition = true;
+        }
+        if (!Objects.equals(seller, "")) {
+            sql.append(hasCondition ? " and " : " where");
+            sql.append(" seller_id = ?");
+            searchConditions.add(seller);
+            hasCondition = true;
+        }
+        if (!Objects.equals(datePosted, "")) {
+            sql.append(hasCondition ? " and " : " where");
+            sql.append(" post_date >= ?"); // TODO: timestamp 형식에 맞게 표시하기
+            searchConditions.add(seller);
+            hasCondition = true;
+        }
+
+        System.out.println("Item ID | Item description | Condition | Seller | Buy-It-Now | Current Bid | highest bidder | Time left | bid close");
+        System.out.println("-------------------------------------------------------------------------------------------------------");
+        try (PreparedStatement stmtSearch = Auction.conn.prepareStatement(sql.toString())) {
+            int col = 1;
+            for (String item: searchConditions) {
+                stmtSearch.setString(col++, item);
+            }
+
+            ResultSet rs = stmtSearch.executeQuery();
+            if (rs.next()) {
+                int itemId = rs.getInt(1);
+                try (PreparedStatement stmtAddAuction = Auction.conn.prepareStatement(Query.QUERY_USER_SELL_AUCTION_REGISTER)) {
+                    stmtAddAuction.setString(1, String.valueOf(itemId));
+                    stmtAddAuction.setString(2, String.valueOf(datePosted));
+                    if (stmtAddAuction.executeUpdate() != 1) {
+                        System.out.println("Error: Failed to print selling items.");
+                        return false;
+                    }
+                }
+            } else {
+                System.out.println("Error: Failed to print selling items.");
                 return false;
             }
-            try (ResultSet rs = stmtAddItem.getGeneratedKeys()) {
-                if (rs.next()) {
-                    int itemId = rs.getInt(1);
-                    try (PreparedStatement stmtAddAuction = Auction.conn.prepareStatement(Query.QUERY_USER_SELL_AUCTION_REGISTER)) {
-                        stmtAddAuction.setString(1, String.valueOf(itemId));
-                        stmtAddAuction.setString(2, String.valueOf(datePosted));
-                        if (stmtAddAuction.executeUpdate() != 1) {
-                            System.out.println("Error: Failed to add auction.");
-                            return false;
-                        }
-                    }
-                } else {
-                    System.out.println("Error: Failed to add auction.");
-                    return false;
-                }
+            while(rs.next()) {
+                System.out.println(rs.getInt(1) + "\t"   // id
+                        + rs.getString(2) + "\t"
+                        + rs.getString(3) + "\t"
+                        + rs.getString(4) + "\t"
+                        + rs.getBigDecimal(5) + "\t"
+                        + rs.getBigDecimal(6) + "\t"
+                        + rs.getString(7) + "\t"
+                        + rs.getTimestamp(8) + "\t" // TODO: 시간 차를 timestamp로 표시?
+                        + rs.getTimestamp(9)
+                );
             }
+
         } catch (Exception e) {
-            System.out.println("Failed to sell due to some error. Sorry.");
+            System.out.println("Failed to print selling items due to some error. Sorry.");
             e.printStackTrace();
             return false;
         }
-
         /* TODO: Query condition: item category */
         /* TODO: Query condition: item condition */
         /* TODO: Query condition: items whose description match the keyword (use LIKE operator) */
@@ -355,9 +419,7 @@ public class UserActions {
         /* TODO: Query condition: posted date of item */
 
         /* TODO: List all items that match the query condition */
-        System.out.println("Item ID | Item description | Condition | Seller | Buy-It-Now | Current Bid | highest bidder | Time left | bid close");
-        System.out.println("-------------------------------------------------------------------------------------------------------");
-		/*
+        /*
 		   while(rset.next()){
 		   }
 		 */
@@ -374,6 +436,24 @@ public class UserActions {
             System.out.println("Error: Invalid input is entered. Try again.");
             return false;
         }
+        int item_id = choice;
+        StringBuilder sqlCheckForItem = new StringBuilder(
+                    "begin transaction;" +
+                    "select auction_id, buy_it_now_price, current_price, auction_status, bid_end_time" +
+                    " from items join auctions using (auction_id)" +
+                    " where item_id = ?;" +
+                    "for update;"
+        );
+        StringBuilder sqlBuyItem = new StringBuilder(
+                "if ? >= buy_it_now_price and auction_status in ('listed', bidding') then" +
+                "update auctions set auction_status = 'sold', current_price = ?" +
+                " where auction_id = ?;" +
+                "insert into billing (item_id, buyer_id, seller_id, final_price, payment_status)" +
+                "select ?, ?, ?, ?, 'completed' from items where item_id = ?;" +
+                "update bids set bid_status = 'outbid' where auction_id = ?" +
+                "commit;" +
+                "elseif ? >= "
+        );
 
         /* TODO: Buy-it-now or bid: If the entered price is higher or equal to Buy-It-Now price, the bid ends and the following needs to be printed. */
         /* Even if the bid price is higher than the Buy-It-Now price, the buyer pays the B-I-N price. */

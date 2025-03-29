@@ -15,7 +15,8 @@ public class Query {
     public static final String QUERY_USER_SELL_ITEM_REGISTER = "insert into items (item_desc, seller_id, item_category, item_condition) values (?, ?, ?, ?) RETURNING item_id;";
     public static final String QUERY_USER_SELL_AUCTION_REGISTER = "insert into auctions (item_id, buy_it_now_price, bid_end_time, auction_status) values" +
             "(?, ?, ?, 'listed');";
-    public static final String QUERY_USER_BUY_ITEM = "";
+    public static final String QUERY_USER_CHECK_SELLS = "select item_desc, bidder_id, bid_price, bid_time from selling_items where seller_id = ?;";
+    public static final String QUERY_USER_BUY_ITEM = ";";
     // 수수료 금액 책정???
     public static final String QUERY_USER_CHECK_ACCOUNT_SOLD = "select item_category, auctions.item_id, bid_end_time, current_price, buyer_id, current_price*0.05 from sold_items where seller_id = ?;";
     public static final String QUERY_USER_CHECK_ACCOUNT_BOUGHT = "select item_category, auctions.item_id, bid_end_time, current_price, seller_id, current_price*0.05 from sold_items where buyer_id = ?;";
