@@ -1,5 +1,6 @@
 package Modules;
 
+import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.time.LocalDateTime;
@@ -437,33 +438,38 @@ public class UserActions {
             return false;
         }
         int item_id = choice;
-        StringBuilder sqlCheckForItem = new StringBuilder(
-                    "begin transaction;" +
-                    "select auction_id, buy_it_now_price, current_price, auction_status, bid_end_time" +
-                    " from items join auctions using (auction_id)" +
-                    " where item_id = ?;" +
-                    "for update;"
-        );
-        StringBuilder sqlBuyItem = new StringBuilder(
-                "if ? >= buy_it_now_price and auction_status in ('listed', bidding') then" +
-                "update auctions set auction_status = 'sold', current_price = ?" +
-                " where auction_id = ?;" +
-                "insert into billing (item_id, buyer_id, seller_id, final_price, payment_status)" +
-                "select ?, ?, ?, ?, 'completed' from items where item_id = ?;" +
-                "update bids set bid_status = 'outbid' where auction_id = ?" +
-                "commit;" +
-                "elseif ? >= "
-        );
 
         /* TODO: Buy-it-now or bid: If the entered price is higher or equal to Buy-It-Now price, the bid ends and the following needs to be printed. */
-        /* Even if the bid price is higher than the Buy-It-Now price, the buyer pays the B-I-N price. */
-        System.out.println("Thank you for the purchase.\n");
+        try (PreparedStatement stmtBuy = Auction.conn.prepareStatement("select buy_item(?, ?, ?)")) {
+            stmtBuy.setInt(1, item_id);
+            stmtBuy.setString(2, Auction.username);
+            stmtBuy.setBigDecimal(3, BigDecimal.valueOf(price)); // int -> BigDecimal 변환
+            ResultSet rs = stmtBuy.executeQuery();
 
-        /* If the entered price is lower than the current highest price, print out the following. */
-        System.out.println("You must bid higher than the current price. \n");
+            if (rs.next()) {
+                String result = rs.getString(1); // purchased , bid-ok , failed
+                switch (result) {
+                    case "purchased":
+                        /* Even if the bid price is higher than the Buy-It-Now price, the buyer pays the B-I-N price. */
+                        System.out.println("Thank you for the purchase.\n");
+                        break;
+                    case "bid-ok":
+                        /* Otherwise, print the following */
+                        System.out.println("Congratulations, you are the highest bidder.\n");
+                        break;
+                    default:
+                        /* If the entered price is lower than the current highest price, print out the following. */
+                        System.out.println("You must bid higher than the current price. \n");
+                }
+            } else {
+                System.out.println("Failed to buy item.");
+            }
 
-        /* Otherwise, print the following */
-        System.out.println("Congratulations, you are the highest bidder.\n");
+        } catch (Exception e) {
+            System.out.println("Failed to buy due to some error. Sorry.");
+            e.printStackTrace();
+            return false;
+        }
         return true;
     }
 
