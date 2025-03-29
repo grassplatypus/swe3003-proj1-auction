@@ -46,7 +46,7 @@ public class SystemActions {
             System.out.println("Error: Invalid input is entered. Try again.");
             return false;
         }
-
+        // Admin Login Succeed
         do {
             System.out.println(
                     "----< Admin menu > \n" +
@@ -69,14 +69,27 @@ public class SystemActions {
                 System.out.println("----Enter Category to search : ");
                 keyword = Auction.scanner.next();
                 Auction.scanner.nextLine();
-                /*TODO: Print Sold Items per Category */
+                /* 판매된 아이템 카테고리별 표시 */
                 System.out.println("sold item       | sold date       | seller ID   | buyer ID   | price | commissions");
                 System.out.println("----------------------------------------------------------------------------------");
-				/*
-				   while(rset.next()){
-				   }
-				 */
-                continue;
+                try (PreparedStatement pstmt = Auction.conn.prepareStatement(Query.QUERY_ADMIN_PRINT_SOLD_ITEMS_PER_CATEGORY)) {
+                    pstmt.setString(1, keyword);
+                    ResultSet rs = pstmt.executeQuery();
+
+                    while(rs.next()) {
+                        System.out.println(rs.getString(1) + "\t"   // item (desc?)
+                                + rs.getTimestamp(2) + "\t"         // sold date
+                                + rs.getString(3) + "\t"            // buyer ID
+                                + rs.getString(4) + "\t"            // buyer ID
+                                + rs.getBigDecimal(5) + "\t"        // sold price
+                                + rs.getBigDecimal(6));             // commission
+                    }
+
+                } catch (Exception e) {
+                    System.out.println("Failed to check sold items due to some error. Sorry.");
+                    e.printStackTrace();
+                    return false;
+                }
             } else if (choice == '2') {
                 /*TODO: Print Account Balance for Seller */
                 System.out.println("---- Enter Seller ID to search : ");
@@ -84,34 +97,65 @@ public class SystemActions {
                 Auction.scanner.nextLine();
                 System.out.println("sold item       | sold date       | buyer ID   | price | commissions");
                 System.out.println("--------------------------------------------------------------------");
-				/*
-				   while(rset.next()){
-				   }
-				 */
-                continue;
+                try (PreparedStatement pstmt = Auction.conn.prepareStatement(Query.QUERY_ADMIN_ACCOUNT_BALANCE_FOR_SELLER)) {
+                    pstmt.setString(1, seller);
+                    ResultSet rs = pstmt.executeQuery();
+
+                    while(rs.next()) {
+                        System.out.println(rs.getString(1) + "\t"   // item (desc?)
+                                + rs.getTimestamp(2) + "\t"         // sold date
+                                + rs.getString(3) + "\t"            // buyer ID
+                                + rs.getBigDecimal(5) + "\t"        // sold price
+                                + rs.getBigDecimal(6));             // commission
+                    }
+
+                } catch (Exception e) {
+                    System.out.println("Failed to check seller balance due to some error. Sorry.");
+                    e.printStackTrace();
+                    return false;
+                }
             } else if (choice == '3') {
                 /*TODO: Print Seller Ranking */
                 System.out.println("seller ID   | # of items sold | Total Profit (excluding commissions)");
                 System.out.println("--------------------------------------------------------------------");
-				/*
-				   while(rset.next()){
-				   }
-				 */
-                continue;
+                try (PreparedStatement pstmt = Auction.conn.prepareStatement(Query.QUERY_ADMIN_SELLER_RANKING)) {
+                    ResultSet rs = pstmt.executeQuery();
+
+                    while(rs.next()) {
+                        System.out.println(rs.getString(1) + "\t"   // id
+                                + rs.getInt(2) + "\t"         // items sold
+                                + rs.getBigDecimal(3));  // total profit
+                    }
+
+                } catch (Exception e) {
+                    System.out.println("Failed to check seller ranking due to some error. Sorry.");
+                    e.printStackTrace();
+                    return false;
+                }
             } else if (choice == '4') {
                 /*TODO: Print Buyer Ranking */
                 System.out.println("buyer ID   | # of items purchased | Total Money Spent ");
                 System.out.println("------------------------------------------------------");
-				/*
-				   while(rset.next()){
-				   }
-				 */
-                continue;
+                try (PreparedStatement pstmt = Auction.conn.prepareStatement(Query.QUERY_ADMIN_BUYER_RANKING)) {
+                    ResultSet rs = pstmt.executeQuery();
+
+                    while(rs.next()) {
+                        while(rs.next()) {
+                            System.out.println(rs.getString(1) + "\t"   // id
+                                    + rs.getInt(2) + "\t"         // items bought
+                                    + rs.getBigDecimal(3));  // total spent
+                        }
+                    }
+
+                } catch (Exception e) {
+                    System.out.println("Failed to check buyer ranking due to some error. Sorry.");
+                    e.printStackTrace();
+                    return false;
+                }
             } else if (choice == 'P' || choice == 'p') {
                 return false;
             } else {
                 System.out.println("Error: Invalid input is entered. Try again.");
-                continue;
             }
         } while(true);
     }
@@ -199,7 +243,7 @@ public class SystemActions {
                     return false;
                 }
             } catch (Exception e) {
-                System.out.println("Failed to login due to some error. Sorry.");
+                System.out.println("Failed to signup due to some error. Sorry.");
                 e.printStackTrace();
                 Auction.username = null;
                 return false;

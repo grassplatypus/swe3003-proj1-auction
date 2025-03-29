@@ -1,17 +1,23 @@
 package Modules;
 
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.InputMismatchException;
+
 import Modules.*;
 import StaticData.*;
 
 public class UserActions {
 
     public static boolean SellMenu() {
-        Define.Category category;
-        Define.Condition condition;
+        Define.Category category = null;
+        Define.Condition condition = null;
+        String description;
         char choice;
-        int price;
+        int buyItNowPrice = 0;
+        LocalDateTime bidEndDateTime = null;
         boolean flag_catg = true, flag_cond = true;
 
         do{
@@ -29,7 +35,7 @@ public class UserActions {
 
             try {
                 choice = Auction.scanner.next().charAt(0);;
-            }catch (java.util.InputMismatchException e) {
+            }catch (InputMismatchException e) {
                 System.out.println("Error: Invalid input is entered. Try again.");
                 continue;
             }
@@ -78,7 +84,7 @@ public class UserActions {
             try {
                 choice = Auction.scanner.next().charAt(0);;
                 Auction.scanner.nextLine();
-            }catch (java.util.InputMismatchException e) {
+            }catch (InputMismatchException e) {
                 System.out.println("Error: Invalid input is entered. Try again.");
                 continue;
             }
@@ -110,7 +116,7 @@ public class UserActions {
 
         try {
             System.out.println("---- Description of the item (one line): ");
-            String description = Auction.scanner.nextLine();
+            description = Auction.scanner.nextLine();
             System.out.println("---- Buy-It-Now price: ");
 
             while (!Auction.scanner.hasNextInt()) {
@@ -118,20 +124,55 @@ public class UserActions {
                 System.out.println("Invalid input is entered. Please enter Buy-It-Now price: ");
             }
 
-            price = Auction.scanner.nextInt();
+            buyItNowPrice = Auction.scanner.nextInt();
             Auction.scanner.nextLine();
 
             System.out.print("---- Bid closing date and time (YYYY-MM-DD HH:MM): ");
             // you may assume users always enter valid date/time
             String date = Auction.scanner.nextLine();  /* "2023-03-04 11:30"; */
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-            LocalDateTime dateTime = LocalDateTime.parse(date, formatter);
+            bidEndDateTime = LocalDateTime.parse(date, formatter);
         }catch (Exception e) {
             System.out.println("Error: Invalid input is entered. Going back to the previous menu.");
             return false;
         }
 
         /* TODO: Your code should come here to store the user inputs in your database */
+
+        try (PreparedStatement stmtAddItem = Auction.conn.prepareStatement(Query.QUERY_USER_SELL_ITEM_REGISTER,
+                PreparedStatement.RETURN_GENERATED_KEYS)) {
+            stmtAddItem.setString(1, description); // item_desc
+            stmtAddItem.setString(2, Auction.username); // seller_id
+            stmtAddItem.setString(3, category.name());
+            stmtAddItem.setString(4, condition.name());
+
+            if (stmtAddItem.executeUpdate() != 1) {
+                /* If Fails */
+                System.out.println("Error: Failed to add item.");
+                return false;
+            }
+            try (ResultSet rs = stmtAddItem.getGeneratedKeys()) {
+                if (rs.next()) {
+                    int itemId = rs.getInt(1);
+                    try (PreparedStatement stmtAddAuction = Auction.conn.prepareStatement(Query.QUERY_USER_SELL_AUCTION_REGISTER)) {
+                        stmtAddAuction.setString(1, String.valueOf(itemId));
+                        stmtAddAuction.setString(2, String.valueOf(buyItNowPrice));
+                        stmtAddAuction.setString(3, String.valueOf(bidEndDateTime));
+                        if (stmtAddAuction.executeUpdate() != 1) {
+                            System.out.println("Error: Failed to add auction.");
+                            return false;
+                        }
+                    }
+                } else {
+                    System.out.println("Error: Failed to add auction.");
+                    return false;
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("Failed to sell due to some error. Sorry.");
+            e.printStackTrace();
+            return false;
+        }
 
         System.out.println("Your item has been successfully listed.\n");
         return true;
@@ -150,8 +191,8 @@ public class UserActions {
     }
 
     public static boolean BuyItem(){
-        Define.Category category;
-        Define.Condition condition;
+        Define.Category category = null;
+        Define.Condition condition = null;
         char choice;
         int price;
         String keyword, seller, datePosted;
@@ -173,7 +214,7 @@ public class UserActions {
             try {
                 choice = Auction.scanner.next().charAt(0);;
                 Auction.scanner.nextLine();
-            } catch (java.util.InputMismatchException e) {
+            } catch (InputMismatchException e) {
                 System.out.println("Error: Invalid input is entered. Try again.");
                 return false;
             }
@@ -224,7 +265,7 @@ public class UserActions {
             try {
                 choice = Auction.scanner.next().charAt(0);;
                 Auction.scanner.nextLine();
-            } catch (java.util.InputMismatchException e) {
+            } catch (InputMismatchException e) {
                 System.out.println("Error: Invalid input is entered. Try again.");
                 return false;
             }
@@ -268,8 +309,42 @@ public class UserActions {
             System.out.println(" ** This will search items that have been posted after the designated date.");
             datePosted = Auction.scanner.next();
             Auction.scanner.nextLine();
-        } catch (java.util.InputMismatchException e) {
+        } catch (InputMismatchException e) {
             System.out.println("Error: Invalid input is entered. Try again.");
+            return false;
+        }
+        // 검색, 
+        try (PreparedStatement stmtAddItem = Auction.conn.prepareStatement(Query.QUERY_USER_SELL_ITEM_REGISTER,
+                PreparedStatement.RETURN_GENERATED_KEYS)) {
+            stmtAddItem.setString(1, keyword); // item_desc
+            stmtAddItem.setString(2, seller); // seller_id
+            stmtAddItem.setString(3, category.name());
+            stmtAddItem.setString(4, condition.name());
+
+            if (stmtAddItem.executeUpdate() != 1) {
+                /* If Fails */
+                System.out.println("Error: Failed to add item.");
+                return false;
+            }
+            try (ResultSet rs = stmtAddItem.getGeneratedKeys()) {
+                if (rs.next()) {
+                    int itemId = rs.getInt(1);
+                    try (PreparedStatement stmtAddAuction = Auction.conn.prepareStatement(Query.QUERY_USER_SELL_AUCTION_REGISTER)) {
+                        stmtAddAuction.setString(1, String.valueOf(itemId));
+                        stmtAddAuction.setString(2, String.valueOf(datePosted));
+                        if (stmtAddAuction.executeUpdate() != 1) {
+                            System.out.println("Error: Failed to add auction.");
+                            return false;
+                        }
+                    }
+                } else {
+                    System.out.println("Error: Failed to add auction.");
+                    return false;
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("Failed to sell due to some error. Sorry.");
+            e.printStackTrace();
             return false;
         }
 
@@ -295,7 +370,7 @@ public class UserActions {
             System.out.println("     Price: ");
             price = Auction.scanner.nextInt();
             Auction.scanner.nextLine();
-        } catch (java.util.InputMismatchException e) {
+        } catch (InputMismatchException e) {
             System.out.println("Error: Invalid input is entered. Try again.");
             return false;
         }
@@ -327,21 +402,49 @@ public class UserActions {
 
     public static void CheckAccount(){
         /* TODO: Check the balance of the current user.  */
+
         System.out.println("[Sold Items] \n");
         System.out.println("item category  | item ID   | sold date | sold price  | buyer ID | commission  ");
         System.out.println("------------------------------------------------------------------------------");
-		/*
-		   while(rset.next(){
-		   System.out.println();
+        try (PreparedStatement stmtCheckSold = Auction.conn.prepareStatement(Query.QUERY_USER_CHECK_ACCOUNT_SOLD)) {
+            stmtCheckSold.setString(1, Auction.username);
+            ResultSet rs = stmtCheckSold.executeQuery();
+
+		   while(rs.next()) {
+		    System.out.println(rs.getString(1) + "\t"   // item category
+                    + rs.getInt(2) + "\t"               // item id
+                    + rs.getTimestamp(3) + "\t"         // sold date
+                    + rs.getBigDecimal(4) + "\t"        // sold price
+                    + rs.getString(5) + "\t"            // buyer ID
+                    + rs.getBigDecimal(6));             // commission
 		   }
-		 */
+
+        } catch (Exception e) {
+            System.out.println("Failed to check sold items due to some error. Sorry.");
+            e.printStackTrace();
+            return;
+        }
+
+
         System.out.println("[Purchased Items] \n");
-        System.out.println("item category  | item ID   | purchased date | puchased price  | seller ID ");
+        System.out.println("item category | item ID   | purchased date | purchased price  | seller ID ");
         System.out.println("--------------------------------------------------------------------------");
-		/*
-		   while(rset.next(){
-		   System.out.println();
-		   }
-		 */
+        try (PreparedStatement stmtCheckBought = Auction.conn.prepareStatement(Query.QUERY_USER_CHECK_ACCOUNT_SOLD)) {
+            stmtCheckBought.setString(1, Auction.username);
+            ResultSet rs = stmtCheckBought.executeQuery();
+
+            while(rs.next()) {
+                System.out.println(rs.getString(1) + "\t"   // item category
+                        + rs.getInt(2) + "\t"               // item id
+                        + rs.getTimestamp(3) + "\t"         // purchased date
+                        + rs.getBigDecimal(4) + "\t"        // purchased price
+                        + rs.getString(5) + "\t"            // buyer ID
+                        + rs.getBigDecimal(6));             // commission
+            }
+
+        } catch (Exception e) {
+            System.out.println("Failed to check bought items due to some error. Sorry.");
+            e.printStackTrace();
+        }
     }
 }
