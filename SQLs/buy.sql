@@ -4,11 +4,16 @@ create or replace function buy_item(var_item_id in int, var_buyer_id in varchar(
         item_data record;
 
     begin
-        select a.auction_id, a.buy_it_now_price, a.current_price, a.auction_status, a.bid_end_time, i.seller_id
-        into item_data
-        from items i join auctions a using (auction_id)
-        where i.item_id = var_item_id and a.bid_end_time > now() -- 시간 만료 안된 매물인지 검증
-        for update;
+        begin
+            select a.auction_id, a.buy_it_now_price, a.current_price, a.auction_status, a.bid_end_time, i.seller_id
+            into item_data
+            from items i join auctions a using (auction_id)
+            where i.item_id = var_item_id and a.bid_end_time > now() -- 시간 만료 안된 매물인지 검증
+            for update;
+            exception
+            when NO_DATA_FOUND then -- 항목 못찾으면 예외처리
+                return 'failed';
+        end;
         if var_price >= item_data.buy_it_now_price and item_data.auction_status in ('listed', 'bidding') then -- 즉시 구매가 제시
             -- 구매한 값이 current_price가 됨
             update auctions
